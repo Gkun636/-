@@ -1,3 +1,2 @@
 @echo off
-cd /d "D:\projectest"
-start "" pythonw "D:\projectest\pomodoro.py"
+start "" "D:\projectest\pomodoro.html"

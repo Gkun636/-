@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>番茄钟</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #fef9f0;
+    --warm-white: #fff8f0;
+    --card-bg: #fffaf4;
+    --terracotta: #e07a5f;
+    --terracotta-glow: #f4a58a;
+    --sage: #81b29a;
+    --sage-glow: #a8d5ba;
+    --gold: #f2cc8f;
+    --gold-glow: #f9e0b8;
+    --text: #3d2b22;
+    --text-soft: #8b6f5e;
+    --text-muted: #b8a094;
+    --ring-track: #f0e6d8;
+    --shadow-soft: 0 2px 20px rgba(61, 43, 34, 0.06);
+    --shadow-card: 0 8px 40px rgba(61, 43, 34, 0.08), 0 2px 8px rgba(61, 43, 34, 0.04);
+    --shadow-btn: 0 2px 8px rgba(61, 43, 34, 0.08);
+    --radius: 24px;
+    --transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background:
+      radial-gradient(ellipse at 50% 0%, #fef6ed 0%, transparent 60%),
+      radial-gradient(ellipse at 85% 100%, #fdf0e6 0%, transparent 50%),
+      var(--cream);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+
+  /* ── Grain texture overlay ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    width: 420px;
+    background: var(--card-bg);
+    border-radius: 32px;
+    padding: 40px 36px 32px;
+    box-shadow: var(--shadow-card);
+    border: 1px solid rgba(61, 43, 34, 0.04);
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+  .mode-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--terracotta);
+    transition: background var(--transition);
+  }
+  .mode-label {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text-soft);
+    letter-spacing: 0.02em;
+    transition: color var(--transition);
+  }
+
+  /* ── Ring timer ── */
+  .ring-container {
+    position: relative;
+    width: 260px; height: 260px;
+    margin: 0 auto 24px;
+  }
+  .ring-bg {
+    position: absolute;
+    inset: 0;
+  }
+  .ring-bg circle {
+    fill: none;
+    stroke: var(--ring-track);
+    stroke-width: 10;
+  }
+  .ring-progress {
+    position: absolute;
+    inset: 0;
+    transform: rotate(-90deg);
+  }
+  .ring-progress circle {
+    fill: none;
+    stroke: var(--terracotta);
+    stroke-width: 10;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1), stroke var(--transition);
+  }
+  .time-display {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .time-text {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 4rem;
+    font-weight: 400;
+    color: var(--text);
+    line-height: 1;
+    letter-spacing: 0.02em;
+    transition: color var(--transition);
+  }
+  .time-sub {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  /* ── Session dots ── */
+  .dots-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--ring-track);
+    transition: background 0.3s ease, transform 0.3s ease;
+  }
+  .dot.filled {
+    background: var(--terracotta);
+    transform: scale(1.1);
+  }
+  .dot.current {
+    box-shadow: 0 0 0 3px rgba(224, 122, 95, 0.2);
+  }
+
+  /* ── Progress bar ── */
+  .bar-track {
+    height: 5px;
+    background: var(--ring-track);
+    border-radius: 10px;
+    margin-bottom: 28px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    background: var(--terracotta);
+    border-radius: 10px;
+    width: 0%;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1), background var(--transition);
+  }
+
+  /* ── Buttons ── */
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 14px;
+  }
+  .btn {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 12px 0;
+    width: 100px;
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn-start {
+    background: var(--terracotta);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(224, 122, 95, 0.25);
+  }
+  .btn-start:hover { background: #d46e53; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(224, 122, 95, 0.3); }
+  .btn-pause {
+    background: var(--gold);
+    color: var(--text);
+    box-shadow: 0 4px 16px rgba(242, 204, 143, 0.3);
+  }
+  .btn-pause:hover { background: #e8bf7a; transform: translateY(-1px); }
+  .btn-reset {
+    background: #f8e8e4;
+    color: var(--text-soft);
+  }
+  .btn-reset:hover { background: #f0d8d2; transform: translateY(-1px); }
+  .btn:disabled {
+    opacity: 0.45;
+    pointer-events: none;
+    filter: grayscale(0.3);
+  }
+
+  /* ── Mode tabs ── */
+  .mode-tabs {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    margin-bottom: 20px;
+    background: #f5ede4;
+    border-radius: 14px;
+    padding: 4px;
+  }
+  .mode-tab {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 0.78rem;
+    font-weight: 500;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 11px;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text-soft);
+    transition: all 0.3s ease;
+    letter-spacing: 0.02em;
+  }
+  .mode-tab.active {
+    background: #fff;
+    color: var(--text);
+    box-shadow: 0 1px 4px rgba(61, 43, 34, 0.08);
+  }
+  .mode-tab:hover:not(.active) { color: var(--text); }
+
+  /* ── Bottom row ── */
+  .bottom-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+  }
+  .btn-settings {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 10px;
+    transition: all 0.2s ease;
+  }
+  .btn-settings:hover { background: #f5ede4; color: var(--text-soft); }
+  .pin-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .pin-label input { accent-color: var(--terracotta); }
+
+  /* ── Settings panel ── */
+  .settings-panel {
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 0.4s ease, opacity 0.3s ease, margin 0.3s ease;
+    margin-top: 0;
+  }
+  .settings-panel.open {
+    max-height: 280px;
+    opacity: 1;
+    margin-top: 16px;
+  }
+  .settings-inner {
+    background: #faf6f0;
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .setting-label {
+    font-size: 0.82rem;
+    color: var(--text-soft);
+  }
+  .setting-input {
+    width: 64px;
+    padding: 6px 8px;
+    border: 1px solid #e8ddd0;
+    border-radius: 8px;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 0.85rem;
+    text-align: center;
+    color: var(--text);
+    background: #fff;
+    transition: border-color 0.2s;
+  }
+  .setting-input:focus {
+    outline: none;
+    border-color: var(--terracotta);
+  }
+  .btn-save {
+    align-self: center;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    padding: 8px 28px;
+    background: var(--terracotta);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    margin-top: 4px;
+    transition: all 0.2s;
+  }
+  .btn-save:hover { background: #d46e53; }
+
+  /* ── Toast ── */
+  .toast-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    background: rgba(254, 249, 240, 0.7);
+    backdrop-filter: blur(8px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+  }
+  .toast-overlay.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .toast {
+    background: #fff;
+    border-radius: 24px;
+    padding: 32px 40px;
+    text-align: center;
+    box-shadow: var(--shadow-card);
+    border: 1px solid rgba(61, 43, 34, 0.04);
+    transform: translateY(20px) scale(0.95);
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .toast-overlay.show .toast {
+    transform: translateY(0) scale(1);
+  }
+  .toast-icon { font-size: 2.5rem; margin-bottom: 8px; }
+  .toast-title {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 1.5rem;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .toast-sub {
+    font-size: 0.9rem;
+    color: var(--text-soft);
+    margin-bottom: 16px;
+  }
+  .btn-dismiss {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 0.85rem;
+    padding: 10px 30px;
+    background: var(--terracotta);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-dismiss:hover { background: #d46e53; transform: translateY(-1px); }
+
+  /* ── Responsive ── */
+  @media (max-width: 480px) {
+    .app { width: 92vw; padding: 28px 20px 24px; }
+    .ring-container { width: 220px; height: 220px; }
+    .time-text { font-size: 3.2rem; }
+    .btn { width: 80px; font-size: 0.82rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Header -->
+  <div class="header">
+    <div class="mode-dot" id="modeDot"></div>
+    <span class="mode-label" id="modeLabel">🍅 准备开始</span>
+  </div>
+
+  <!-- Circular ring timer -->
+  <div class="ring-container">
+    <svg class="ring-bg" viewBox="0 0 260 260">
+      <circle cx="130" cy="130" r="120"/>
+    </svg>
+    <svg class="ring-progress" viewBox="0 0 260 260" id="ringSvg">
+      <circle cx="130" cy="130" r="120" id="ringCircle"
+              stroke-dasharray="753.98"
+              stroke-dashoffset="0"/>
+    </svg>
+    <div class="time-display">
+      <span class="time-text" id="timeText">25:00</span>
+      <span class="time-sub" id="timeSub">工作</span>
+    </div>
+  </div>
+
+  <!-- Session dots -->
+  <div class="dots-row" id="dotsRow"></div>
+
+  <!-- Progress bar -->
+  <div class="bar-track">
+    <div class="bar-fill" id="barFill"></div>
+  </div>
+
+  <!-- Control buttons -->
+  <div class="btn-row">
+    <button class="btn btn-start" id="btnStart" onclick="timer.start()">开始</button>
+    <button class="btn btn-pause" id="btnPause" onclick="timer.pause()" disabled>暂停</button>
+    <button class="btn btn-reset" id="btnReset" onclick="timer.reset()">重置</button>
+  </div>
+
+  <!-- Mode tabs -->
+  <div class="mode-tabs">
+    <button class="mode-tab active" data-mode="work" onclick="timer.switchMode('work')">🍅 工作 25min</button>
+    <button class="mode-tab" data-mode="short_break" onclick="timer.switchMode('short_break')">☕ 短休 5min</button>
+    <button class="mode-tab" data-mode="long_break" onclick="timer.switchMode('long_break')">🌴 长休 15min</button>
+  </div>
+
+  <!-- Bottom row -->
+  <div class="bottom-row">
+    <button class="btn-settings" onclick="toggleSettings()">⚙ 设置</button>
+    <label class="pin-label">
+      <input type="checkbox" id="pinCheck" onchange="togglePin()"> 窗口置顶
+    </label>
+  </div>
+
+  <!-- Settings panel -->
+  <div class="settings-panel" id="settingsPanel">
+    <div class="settings-inner">
+      <div class="setting-row">
+        <span class="setting-label">工作时间 (分钟)</span>
+        <input class="setting-input" type="number" id="setWork" value="25" min="1" max="120">
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">短休 (分钟)</span>
+        <input class="setting-input" type="number" id="setShort" value="5" min="1" max="120">
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">长休 (分钟)</span>
+        <input class="setting-input" type="number" id="setLong" value="15" min="1" max="120">
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">每几次后长休</span>
+        <input class="setting-input" type="number" id="setInterval" value="4" min="1" max="10">
+      </div>
+      <button class="btn-save" onclick="saveSettings()">保存设置</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast overlay -->
+<div class="toast-overlay" id="toastOverlay">
+  <div class="toast">
+    <div class="toast-icon" id="toastIcon">🍅</div>
+    <div class="toast-title" id="toastTitle">时间到！</div>
+    <div class="toast-sub" id="toastSub"></div>
+    <button class="btn-dismiss" onclick="dismissToast()">知道了</button>
+  </div>
+</div>
+
+<script>
+const CIRCUMFERENCE = 2 * Math.PI * 120; // 120 = ring radius
+
+const MODE_COLORS = {
+  work:      { accent: '#e07a5f', glow: '#f4a58a', bg: '#fef6ee' },
+  short_break: { accent: '#81b29a', glow: '#a8d5ba', bg: '#f4f9f6' },
+  long_break: { accent: '#f2cc8f', glow: '#f9e0b8', bg: '#fdf8f0' },
+};
+
+const LABELS = {
+  work:      { idle: '🍅 准备开始', running: '工作中...', sub: '工作' },
+  short_break: { idle: '☕ 短休', running: '短休中...', sub: '短休' },
+  long_break: { idle: '🌴 长休', running: '长休中...', sub: '长休' },
+};
+
+const TOASTS = {
+  work:      { icon: '🍅', title: '时间到！', sub: '工作时间结束，休息一下吧～' },
+  short_break: { icon: '☕', title: '休息结束', sub: '短休结束，继续加油！' },
+  long_break: { icon: '🌴', title: '休息结束', sub: '长休结束，准备好开始工作了吗？' },
+};
+
+// ── Audio ──
+function playChime() {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const notes = [988, 1175, 1319, 1480, 1568, 1760, 1760, 1568, 1480, 1760, 1976];
+  const durations = [0.12, 0.12, 0.12, 0.12, 0.12, 0.12, 0.12, 0.12, 0.12, 0.12, 0.5];
+  let t = ctx.currentTime;
+  notes.forEach((freq, i) => {
+    if (freq === 0) { t += durations[i]; return; }
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.15, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + durations[i]);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + durations[i]);
+    t += durations[i] + 0.04;
+  });
+}
+
+// ── Timer engine ──
+class PomodoroTimer {
+  constructor() {
+    this.mode = 'work';
+    this.workMin = 25;
+    this.shortMin = 5;
+    this.longMin = 15;
+    this.interval = 4;
+    this.currentSec = this.workMin * 60;
+    this.running = false;
+    this.paused = false;
+    this.sessions = 0;
+    this._intervalId = null;
+
+    this.loadConfig();
+    this.buildDots();
+    this.updateDisplay();
+    this.updateModeHighlight();
+  }
+
+  // ── Config persistence ──
+  loadConfig() {
+    try {
+      const raw = localStorage.getItem('pomodoro_config');
+      if (raw) {
+        const cfg = JSON.parse(raw);
+        this.workMin = cfg.work || 25;
+        this.shortMin = cfg.short_break || 5;
+        this.longMin = cfg.long_break || 15;
+        this.interval = cfg.long_break_interval || 4;
+      }
+    } catch (_) {}
+    this.currentSec = this.totalSec();
+    document.getElementById('setWork').value = this.workMin;
+    document.getElementById('setShort').value = this.shortMin;
+    document.getElementById('setLong').value = this.longMin;
+    document.getElementById('setInterval').value = this.interval;
+  }
+
+  saveConfig() {
+    localStorage.setItem('pomodoro_config', JSON.stringify({
+      work: this.workMin, short_break: this.shortMin,
+      long_break: this.longMin, long_break_interval: this.interval,
+    }));
+  }
+
+  // ── Helpers ──
+  totalSec() {
+    const mins = this.mode === 'work' ? this.workMin :
+                 this.mode === 'short_break' ? this.shortMin : this.longMin;
+    return mins * 60;
+  }
+
+  // ── UI Updates ──
+  updateDisplay() {
+    const total = this.totalSec();
+    const remaining = Math.max(0, Math.round(this.currentSec));
+    const m = Math.floor(remaining / 60);
+    const s = remaining % 60;
+    document.getElementById('timeText').textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+    // Ring progress
+    const ratio = total > 0 ? (total - remaining) / total : 0;
+    const offset = CIRCUMFERENCE * (1 - ratio);
+    document.getElementById('ringCircle').style.strokeDashoffset = offset;
+
+    // Bar progress
+    document.getElementById('barFill').style.width = `${ratio * 100}%`;
+
+    // Dots
+    const filled = this.sessions % this.interval;
+    document.querySelectorAll('.dot').forEach((dot, i) => {
+      dot.classList.toggle('filled', i < filled);
+      dot.classList.toggle('current', i === filled && this.mode === 'work');
+    });
+  }
+
+  updateModeHighlight() {
+    const colors = MODE_COLORS[this.mode];
+    // Ring color
+    document.getElementById('ringCircle').style.stroke = colors.accent;
+    document.getElementById('barFill').style.background = colors.accent;
+    // Mode dot
+    document.getElementById('modeDot').style.background = colors.accent;
+    // Body bg tint
+    document.body.style.background = colors.bg;
+    // Tabs
+    document.querySelectorAll('.mode-tab').forEach(tab => {
+      tab.classList.toggle('active', tab.dataset.mode === this.mode);
+    });
+    // Tab text updates
+    this.updateTabLabels();
+  }
+
+  updateTabLabels() {
+    const tabs = document.querySelectorAll('.mode-tab');
+    tabs[0].textContent = `🍅 工作 ${this.workMin}min`;
+    tabs[1].textContent = `☕ 短休 ${this.shortMin}min`;
+    tabs[2].textContent = `🌴 长休 ${this.longMin}min`;
+  }
+
+  updateLabel(text) {
+    document.getElementById('modeLabel').textContent = text;
+    document.getElementById('timeSub').textContent = LABELS[this.mode].sub;
+  }
+
+  updateButtons(state) {
+    const start = document.getElementById('btnStart');
+    const pause = document.getElementById('btnPause');
+    if (state === 'running') {
+      start.disabled = true;
+      pause.disabled = false;
+    } else if (state === 'paused') {
+      start.disabled = false;
+      pause.disabled = true;
+    } else {
+      start.disabled = false;
+      pause.disabled = true;
+    }
+  }
+
+  buildDots() {
+    const row = document.getElementById('dotsRow');
+    row.innerHTML = '';
+    for (let i = 0; i < this.interval; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'dot';
+      row.appendChild(dot);
+    }
+  }
+
+  // ── Actions ──
+  start() {
+    if (this.running && this.paused) {
+      this.paused = false;
+      this.updateButtons('running');
+      this.updateLabel(LABELS[this.mode].running);
+      return;
+    }
+    if (this.running) return;
+    this.running = true;
+    this.paused = false;
+    this.updateButtons('running');
+    this.updateLabel(LABELS[this.mode].running);
+
+    this._intervalId = setInterval(() => {
+      if (!this.running || this.paused) return;
+      if (this.currentSec > 0) {
+        this.currentSec -= 1;
+        this.updateDisplay();
+      } else {
+        this.currentSec = 0;
+        this.running = false;
+        clearInterval(this._intervalId);
+        this._intervalId = null;
+        this.updateDisplay();
+        this.onFinish();
+      }
+    }, 1000);
+  }
+
+  pause() {
+    if (this.running && !this.paused) {
+      this.paused = true;
+      this.updateButtons('paused');
+      this.updateLabel('⏸ 已暂停');
+    }
+  }
+
+  reset() {
+    this.running = false;
+    this.paused = false;
+    clearInterval(this._intervalId);
+    this._intervalId = null;
+    this.currentSec = this.totalSec();
+    this.updateButtons('stopped');
+    this.updateLabel(LABELS[this.mode].idle);
+    this.updateDisplay();
+  }
+
+  switchMode(mode) {
+    this.running = false;
+    this.paused = false;
+    clearInterval(this._intervalId);
+    this._intervalId = null;
+    this.mode = mode;
+    this.currentSec = this.totalSec();
+    this.updateButtons('stopped');
+    this.updateLabel(LABELS[mode].idle);
+    this.updateModeHighlight();
+    this.updateDisplay();
+  }
+
+  onFinish() {
+    const finishedMode = this.mode;
+    this.updateLabel({work: '工作完成！休息一下吧 🎉',
+                       short_break: '短休结束，继续加油！',
+                       long_break: '长休结束，准备好了吗？'}[finishedMode] || '时间到！');
+
+    if (finishedMode === 'work') {
+      this.sessions++;
+      this.updateDisplay();
+      if (this.sessions % this.interval === 0) {
+        this.switchMode('long_break');
+      } else {
+        this.switchMode('short_break');
+      }
+    }
+
+    this.updateButtons('stopped');
+    playChime();
+    showToast(finishedMode);
+  }
+}
+
+// ── Toast ──
+function showToast(mode) {
+  const t = TOASTS[mode] || TOASTS.work;
+  document.getElementById('toastIcon').textContent = t.icon;
+  document.getElementById('toastTitle').textContent = t.title;
+  document.getElementById('toastSub').textContent = t.sub;
+  document.getElementById('toastOverlay').classList.add('show');
+}
+
+function dismissToast() {
+  document.getElementById('toastOverlay').classList.remove('show');
+}
+
+// ── Settings ──
+function toggleSettings() {
+  document.getElementById('settingsPanel').classList.toggle('open');
+}
+
+function saveSettings() {
+  timer.workMin = parseInt(document.getElementById('setWork').value) || 25;
+  timer.shortMin = parseInt(document.getElementById('setShort').value) || 5;
+  timer.longMin = parseInt(document.getElementById('setLong').value) || 15;
+  timer.interval = parseInt(document.getElementById('setInterval').value) || 4;
+  timer.saveConfig();
+  timer.reset();
+  timer.buildDots();
+  timer.updateModeHighlight();
+  toggleSettings();
+}
+
+// ── Pin ──
+function togglePin() {
+  // Try the experimental window-management API; fallback is just UI state
+  if (document.pictureInPictureEnabled === undefined) {
+    // Not a video, so we can't actually pin a regular window from JS
+    // Store the preference in localStorage
+    localStorage.setItem('pomodoro_pin', document.getElementById('pinCheck').checked);
+  }
+}
+
+// ── Init ──
+const timer = new PomodoroTimer();
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space') { e.preventDefault(); timer.start(); }
+  if (e.code === 'KeyP') { timer.pause(); }
+  if (e.code === 'KeyR') { timer.reset(); }
+  if (e.code === 'Digit1') { timer.switchMode('work'); }
+  if (e.code === 'Digit2') { timer.switchMode('short_break'); }
+  if (e.code === 'Digit3') { timer.switchMode('long_break'); }
+  if (e.code === 'Escape') { dismissToast(); }
+});
+
+// Restore pin preference
+const pinCheck = document.getElementById('pinCheck');
+pinCheck.checked = localStorage.getItem('pomodoro_pin') === 'true';
+</script>
+</body>
+</html>
