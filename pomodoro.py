@@ -345,26 +345,22 @@ class PomodoroTimer:
         )
 
         # ── Mode tabs ──
-        mode_frame = tk.Frame(self.root, bg=SURFACE2)
-        mode_frame.pack(pady=(0, 6))
-        mode_frame.configure(bd=0, highlightthickness=0)
-        # Simulate rounded pill background via inner frame
-        mode_inner = tk.Frame(mode_frame, bg=SURFACE2)
-        mode_inner.pack(padx=4, pady=4)
+        mode_canvas = tk.Canvas(self.root, width=300, height=42, bg=BG, highlightthickness=0)
+        mode_canvas.pack(pady=(0, 6))
+        _draw_round_rect(mode_canvas, 4, 4, 296, 38, r=19, fill=SURFACE2, outline="")
 
         self.work_btn = RoundedButton(
-            mode_inner, 0, 0, 90, 34, f"工作 {self.work_min}min", GREEN, BTN_TEXT,
+            mode_canvas, 8, 4, 90, 34, f"工作 {self.work_min}min", GREEN, BTN_TEXT,
             lambda: self.switch_mode("work"), font=("Microsoft YaHei", 9), r=9,
         )
         self.short_btn = RoundedButton(
-            mode_inner, 96, 0, 90, 34, f"短休 {self.short_break_min}min", BG, FG,
+            mode_canvas, 103, 4, 90, 34, f"短休 {self.short_break_min}min", BG, FG,
             lambda: self.switch_mode("short_break"), font=("Microsoft YaHei", 9), r=9,
         )
         self.long_btn = RoundedButton(
-            mode_inner, 192, 0, 90, 34, f"长休 {self.long_break_min}min", BG, FG,
+            mode_canvas, 198, 4, 90, 34, f"长休 {self.long_break_min}min", BG, FG,
             lambda: self.switch_mode("long_break"), font=("Microsoft YaHei", 9), r=9,
         )
-        self.mode_inner = mode_inner
 
         # ── Bottom row ──
         bottom_frame = tk.Frame(self.root, bg=BG)
