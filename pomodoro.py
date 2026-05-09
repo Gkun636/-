@@ -22,7 +22,6 @@ FG       = "#1c1c1c"
 MUTED    = "#9c9488"
 GREEN    = "#b7473b"
 YELLOW   = "#3a5c8c"
-RED      = "#b7473b"
 PURPLE   = "#5b7a4c"
 BTN_TEXT = "#ffffff"
 DISABLED = "#d5d0c8"
@@ -246,10 +245,7 @@ class PomodoroTimer:
         self.long_break_min = self.cfg["long_break"]
         self.long_break_interval = self.cfg["long_break_interval"]
 
-        self.work_sec = self.work_min * 60
-        self.short_break_sec = self.short_break_min * 60
-        self.long_break_sec = self.long_break_min * 60
-
+        self._recalc_seconds()
         self.current_sec = self.work_sec
         self.running = False
         self.paused = False
@@ -381,15 +377,25 @@ class PomodoroTimer:
         cb.pack(side="left")
 
     def _timer_loop(self):
+        start_time = time.perf_counter()
+        elapsed_paused = 0.0
+        pause_start = 0.0
         while self.running:
             time.sleep(0.2)
             with self._lock:
                 if not self.running:
                     break
                 if self.paused:
+                    if pause_start == 0.0:
+                        pause_start = time.perf_counter()
                     continue
-                if self.current_sec > 0:
-                    self.current_sec -= 0.2
+                if pause_start > 0.0:
+                    elapsed_paused += time.perf_counter() - pause_start
+                    pause_start = 0.0
+                elapsed = time.perf_counter() - start_time - elapsed_paused
+                remaining = self._total_seconds() - elapsed
+                if remaining > 0:
+                    self.current_sec = remaining
                 else:
                     self.current_sec = 0
                     self.running = False
@@ -404,6 +410,7 @@ class PomodoroTimer:
         if finished_mode == "work":
             self.completed_sessions += 1
             self.session_label.config(text=f"已完成: {self.completed_sessions} 个番茄")
+            self._update_dots()
             if self.completed_sessions % self.long_break_interval == 0:
                 self.switch_mode("long_break")
             else:
@@ -480,24 +487,33 @@ class PomodoroTimer:
             self.timer_canvas.itemconfig(self.ring_progress, extent=extent)
             w = int(self.prog_max_w * ratio)
             self.prog_canvas.coords(self.prog_bar, 0, 0, w, 8)
+
+    def _rebuild_dots(self):
+        self.dots_canvas.delete("all")
+        self._session_dot_ids.clear()
+        for i in range(self.long_break_interval):
+            dx = 16 + i * 24
+            dot = self.dots_canvas.create_oval(dx, 0, dx + 14, 14, fill=SURFACE2, outline="")
+            self._session_dot_ids.append(dot)
+
+    def _update_dots(self):
         filled = self.completed_sessions % self.long_break_interval
         for i, dot_id in enumerate(self._session_dot_ids):
             color = GREEN if i < filled else SURFACE2
             self.dots_canvas.itemconfig(dot_id, fill=color)
 
+    def _recalc_seconds(self):
+        self.work_sec = self.work_min * 60
+        self.short_break_sec = self.short_break_min * 60
+        self.long_break_sec = self.long_break_min * 60
+
     def _total_seconds(self):
         return getattr(self, f"{self.mode}_sec")
 
     def _set_buttons_state(self, state):
-        if state == "running":
-            self.start_btn.config(enabled=False)
-            self.pause_btn.config(enabled=True)
-        elif state == "paused":
-            self.start_btn.config(enabled=True)
-            self.pause_btn.config(enabled=False)
-        else:
-            self.start_btn.config(enabled=True)
-            self.pause_btn.config(enabled=False)
+        running = state == "running"
+        self.start_btn.config(enabled=not running)
+        self.pause_btn.config(enabled=running)
 
     def _highlight_mode(self, active):
         colors = {"work": GREEN, "short_break": YELLOW, "long_break": PURPLE}
@@ -557,25 +573,19 @@ class PomodoroTimer:
         self.short_break_min = self.cfg["short_break"]
         self.long_break_min = self.cfg["long_break"]
         self.long_break_interval = self.cfg["long_break_interval"]
-        self.work_sec = self.work_min * 60
-        self.short_break_sec = self.short_break_min * 60
-        self.long_break_sec = self.long_break_min * 60
-        with self._lock:
-            self.running = False
-            self.paused = False
-            self.current_sec = self._total_seconds()
+        self._recalc_seconds()
+        self._rebuild_dots()
+        self.switch_mode(self.mode)
         self.work_btn.config(text=f"工作 {self.work_min}min")
         self.short_btn.config(text=f"短休 {self.short_break_min}min")
         self.long_btn.config(text=f"长休 {self.long_break_min}min")
-        self._set_buttons_state("stopped")
-        self.mode_label.config(text=self.IDLE_LABELS.get(self.mode, "准备开始"))
-        self._update_display()
 
     def _toggle_top(self):
         self.root.attributes("-topmost", self.top_var.get())
 
     def _on_close(self):
-        self.running = False
+        with self._lock:
+            self.running = False
         self.cfg["always_on_top"] = self.top_var.get()
         save_config(self.cfg)
         self.root.destroy()
