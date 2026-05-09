@@ -1,0 +1,7 @@
+{
+  "work": 60,
+  "short_break": 10,
+  "long_break": 30,
+  "long_break_interval": 4,
+  "always_on_top": false
+}
