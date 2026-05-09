@@ -15,16 +15,18 @@ DEFAULTS = {
     "long_break_interval": 4,
 }
 
-BG       = "#1e1e2e"
-SURFACE  = "#2a2a3c"
-SURFACE2 = "#313244"
-FG       = "#cdd6f4"
-MUTED    = "#a6adc8"
-GREEN    = "#a6e3a1"
-YELLOW   = "#f9e2af"
-RED      = "#f38ba8"
-PURPLE   = "#cba6f7"
-DISABLED = "#585b70"
+BG       = "#fbfaf7"
+SURFACE  = "#f3f0eb"
+SURFACE2 = "#e8e3da"
+FG       = "#1c1c1c"
+MUTED    = "#9c9488"
+GREEN    = "#b7473b"
+YELLOW   = "#3a5c8c"
+RED      = "#b7473b"
+PURPLE   = "#5b7a4c"
+BTN_TEXT = "#ffffff"
+DISABLED = "#d5d0c8"
+RING_TK  = "#e8e3da"
 RADIUS   = 14
 
 def load_config():
@@ -195,7 +197,7 @@ class SettingsDialog:
         btn_frame.pack(pady=(20, 10))
         btn_canvas = tk.Canvas(btn_frame, width=120, height=40, bg=BG, highlightthickness=0)
         btn_canvas.pack()
-        RoundedButton(btn_canvas, 0, 0, 120, 40, "保存设置", GREEN, BG,
+        RoundedButton(btn_canvas, 0, 0, 120, 40, "保存设置", GREEN, BTN_TEXT,
                       command=self._save, r=10)
 
     def _add_row(self, label, key, font, pad):
@@ -234,7 +236,7 @@ class PomodoroTimer:
     def __init__(self, root):
         self.root = root
         self.root.title("番茄钟")
-        self.root.geometry("380x510")
+        self.root.geometry("380x580")
         self.root.resizable(False, False)
         self.root.configure(bg=BG)
 
@@ -262,68 +264,116 @@ class PomodoroTimer:
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _build_ui(self):
-        tk.Label(self.root, text="🍅 准备开始", font=("Microsoft YaHei", 14, "bold"),
-                 fg=FG, bg=BG).pack(pady=(22, 10))
-        self.mode_label = self.root.winfo_children()[-1]
+        RING_R = 95
+        RING_W = 10
+        CX, CY = 120, 120
 
-        timer_canvas = tk.Canvas(self.root, width=260, height=110, bg=BG, highlightthickness=0)
-        timer_canvas.pack(pady=(0, 8))
-        _draw_round_rect(timer_canvas, 0, 0, 260, 110, r=20, fill=SURFACE, outline="")
-        self.timer_label = timer_canvas.create_text(
-            130, 55, text="25:00", fill=FG, font=("Consolas", 50, "bold"),
+        # ── Title ──
+        title_frame = tk.Frame(self.root, bg=BG)
+        title_frame.pack(pady=(20, 6))
+
+        self.status_dot = tk.Canvas(title_frame, width=10, height=10, bg=BG, highlightthickness=0)
+        self.status_dot.pack(side="left", padx=(0, 6))
+        self._dot_id = self.status_dot.create_oval(0, 0, 10, 10, fill=GREEN, outline="")
+
+        tk.Label(title_frame, text="🍅 准备开始", font=("Microsoft YaHei", 13, "bold"),
+                 fg=FG, bg=BG).pack(side="left")
+        self.mode_label = title_frame.winfo_children()[-1]
+
+        # ── Circular ring ──
+        ring_canvas = tk.Canvas(self.root, width=240, height=240, bg=BG, highlightthickness=0)
+        ring_canvas.pack(pady=(2, 2))
+
+        ring_canvas.create_oval(
+            CX - RING_R - 6, CY - RING_R - 6, CX + RING_R + 6, CY + RING_R + 6,
+            outline="#e0dcd5", width=1
         )
-        self.timer_canvas = timer_canvas
+        self.ring_track = ring_canvas.create_arc(
+            CX - RING_R, CY - RING_R, CX + RING_R, CY + RING_R,
+            start=90, extent=-359.9, style='arc', outline=RING_TK, width=RING_W
+        )
+        self.ring_progress = ring_canvas.create_arc(
+            CX - RING_R, CY - RING_R, CX + RING_R, CY + RING_R,
+            start=90, extent=0, style='arc', outline=GREEN, width=RING_W
+        )
+        ring_canvas.create_oval(
+            CX - RING_R + 18, CY - RING_R + 18, CX + RING_R - 18, CY + RING_R - 18,
+            fill="#fefdfb", outline=""
+        )
 
-        tk.Label(self.root, text="已完成: 0 个番茄", font=("Microsoft YaHei", 10),
-                 fg=MUTED, bg=BG).pack(pady=(0, 10))
+        self.timer_label = ring_canvas.create_text(
+            CX, CY, text="25:00", fill=FG, font=("Consolas", 46, "bold"),
+        )
+        self.timer_canvas = ring_canvas
+
+        # ── Session dots ──
+        dots_canvas = tk.Canvas(self.root, width=120, height=14, bg=BG, highlightthickness=0)
+        dots_canvas.pack(pady=(6, 2))
+        self._session_dot_ids = []
+        for i in range(self.long_break_interval):
+            dx = 16 + i * 24
+            dot = dots_canvas.create_oval(dx, 0, dx + 14, 14, fill=SURFACE2, outline="")
+            self._session_dot_ids.append(dot)
+        self.dots_canvas = dots_canvas
+
+        tk.Label(self.root, text="已完成: 0 个番茄", font=("Microsoft YaHei", 9),
+                 fg=MUTED, bg=BG).pack(pady=(0, 8))
         self.session_label = self.root.winfo_children()[-1]
 
-        prog_canvas = tk.Canvas(self.root, width=300, height=14, bg=BG, highlightthickness=0)
-        prog_canvas.pack(pady=(0, 18))
-        _draw_round_rect(prog_canvas, 0, 0, 300, 14, r=7, fill=SURFACE, outline="")
-        self.prog_bar = _draw_round_rect(prog_canvas, 0, 0, 0, 14, r=7, fill=GREEN, outline="")
+        # ── Progress bar ──
+        prog_canvas = tk.Canvas(self.root, width=300, height=8, bg=BG, highlightthickness=0)
+        prog_canvas.pack(pady=(0, 14))
+        _draw_round_rect(prog_canvas, 0, 0, 300, 8, r=4, fill=SURFACE2, outline="")
+        self.prog_bar = _draw_round_rect(prog_canvas, 0, 0, 0, 8, r=4, fill=GREEN, outline="")
         self.prog_canvas = prog_canvas
         self.prog_max_w = 300
 
-        ctrl_canvas = tk.Canvas(self.root, width=310, height=48, bg=BG, highlightthickness=0)
-        ctrl_canvas.pack(pady=(0, 12))
+        # ── Control buttons ──
+        ctrl_canvas = tk.Canvas(self.root, width=300, height=44, bg=BG, highlightthickness=0)
+        ctrl_canvas.pack(pady=(0, 10))
+        bw = 92
 
         self.start_btn = RoundedButton(
-            ctrl_canvas, 0, 0, 95, 48, "开始", GREEN, BG, self.start,
+            ctrl_canvas, 0, 0, bw, 44, "开始", GREEN, BTN_TEXT, self.start, r=12,
         )
         self.pause_btn = RoundedButton(
-            ctrl_canvas, 107, 0, 95, 48, "暂停", YELLOW, BG, self.pause,
+            ctrl_canvas, bw + 12, 0, bw, 44, "暂停", YELLOW, BTN_TEXT, self.pause, r=12,
         )
         self.pause_btn.config(enabled=False)
         self.reset_btn = RoundedButton(
-            ctrl_canvas, 214, 0, 95, 48, "重置", RED, BG, self.reset,
+            ctrl_canvas, (bw + 12) * 2, 0, bw, 44, "重置", "#d4cfc7", FG, self.reset, r=12,
         )
 
-        mode_canvas = tk.Canvas(self.root, width=310, height=40, bg=BG, highlightthickness=0)
-        mode_canvas.pack(pady=(0, 8))
+        # ── Mode tabs ──
+        mode_frame = tk.Frame(self.root, bg=SURFACE2)
+        mode_frame.pack(pady=(0, 6))
+        mode_frame.configure(bd=0, highlightthickness=0)
+        # Simulate rounded pill background via inner frame
+        mode_inner = tk.Frame(mode_frame, bg=SURFACE2)
+        mode_inner.pack(padx=4, pady=4)
 
         self.work_btn = RoundedButton(
-            mode_canvas, 0, 0, 95, 40, f"工作 {self.work_min}min", PURPLE, BG,
-            lambda: self.switch_mode("work"), font=("Microsoft YaHei", 9), r=10,
+            mode_inner, 0, 0, 90, 34, f"工作 {self.work_min}min", GREEN, BTN_TEXT,
+            lambda: self.switch_mode("work"), font=("Microsoft YaHei", 9), r=9,
         )
         self.short_btn = RoundedButton(
-            mode_canvas, 107, 0, 95, 40, f"短休 {self.short_break_min}min", SURFACE2, FG,
-            lambda: self.switch_mode("short_break"), font=("Microsoft YaHei", 9), r=10,
+            mode_inner, 96, 0, 90, 34, f"短休 {self.short_break_min}min", BG, FG,
+            lambda: self.switch_mode("short_break"), font=("Microsoft YaHei", 9), r=9,
         )
         self.long_btn = RoundedButton(
-            mode_canvas, 214, 0, 95, 40, f"长休 {self.long_break_min}min", SURFACE2, FG,
-            lambda: self.switch_mode("long_break"), font=("Microsoft YaHei", 9), r=10,
+            mode_inner, 192, 0, 90, 34, f"长休 {self.long_break_min}min", BG, FG,
+            lambda: self.switch_mode("long_break"), font=("Microsoft YaHei", 9), r=9,
         )
+        self.mode_inner = mode_inner
 
-        self._highlight_mode("work")
-
+        # ── Bottom row ──
         bottom_frame = tk.Frame(self.root, bg=BG)
-        bottom_frame.pack(pady=(10, 8))
+        bottom_frame.pack(pady=(8, 8))
 
-        settings_canvas = tk.Canvas(bottom_frame, width=100, height=34, bg=BG, highlightthickness=0)
+        settings_canvas = tk.Canvas(bottom_frame, width=96, height=32, bg=BG, highlightthickness=0)
         settings_canvas.pack(side="left", padx=(0, 30))
-        RoundedButton(settings_canvas, 0, 0, 100, 34, "⚙ 设置", SURFACE2, FG,
-                      self._open_settings, font=("Microsoft YaHei", 9), r=10)
+        RoundedButton(settings_canvas, 0, 0, 96, 32, "⚙ 设置", SURFACE2, FG,
+                      self._open_settings, font=("Microsoft YaHei", 9), r=9)
 
         self.top_var = tk.BooleanVar(value=self.cfg.get("always_on_top", False))
         cb = tk.Checkbutton(
@@ -404,7 +454,7 @@ class PomodoroTimer:
 
                 btn_canvas = tk.Canvas(popup, width=100, height=38, bg=BG, highlightthickness=0)
                 btn_canvas.pack()
-                RoundedButton(btn_canvas, 0, 0, 100, 38, "知道了", GREEN, BG,
+                RoundedButton(btn_canvas, 0, 0, 100, 38, "知道了", GREEN, BTN_TEXT,
                               command=popup.destroy, r=10)
 
                 popup.bind("<Escape>", lambda e: popup.destroy())
@@ -430,8 +480,14 @@ class PomodoroTimer:
         self.timer_canvas.itemconfig(self.timer_label, text=f"{m:02d}:{s:02d}")
         if total > 0:
             ratio = (total - remaining) / total
+            extent = -359.9 * ratio
+            self.timer_canvas.itemconfig(self.ring_progress, extent=extent)
             w = int(self.prog_max_w * ratio)
-            self.prog_canvas.coords(self.prog_bar, 0, 0, w, 14)
+            self.prog_canvas.coords(self.prog_bar, 0, 0, w, 8)
+        filled = self.completed_sessions % self.long_break_interval
+        for i, dot_id in enumerate(self._session_dot_ids):
+            color = GREEN if i < filled else SURFACE2
+            self.dots_canvas.itemconfig(dot_id, fill=color)
 
     def _total_seconds(self):
         return getattr(self, f"{self.mode}_sec")
@@ -448,12 +504,16 @@ class PomodoroTimer:
             self.pause_btn.config(enabled=False)
 
     def _highlight_mode(self, active):
+        colors = {"work": GREEN, "short_break": YELLOW, "long_break": PURPLE}
+        accent = colors.get(active, GREEN)
+        self.timer_canvas.itemconfig(self.ring_progress, outline=accent)
+        self.status_dot.itemconfig(self._dot_id, fill=accent)
         for btn, mode in [(self.work_btn, "work"), (self.short_btn, "short_break"),
                           (self.long_btn, "long_break")]:
             if mode == active:
-                btn.config(color=PURPLE, text_color=BG)
+                btn.config(color=colors[mode], text_color=BTN_TEXT)
             else:
-                btn.config(color=SURFACE2, text_color=FG)
+                btn.config(color=BG, text_color=FG)
 
     def start(self):
         with self._lock:
